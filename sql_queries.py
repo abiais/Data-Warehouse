@@ -5,6 +5,12 @@ import configparser
 config = configparser.ConfigParser()
 config.read('dwh.cfg')
 
+# GLOBAL VARIABLES
+LOG_DATA = config.get("S3","LOG_DATA")
+LOG_JSONPATH = config.get("S3", "LOG_JSONPATH")
+SONG_DATA = config.get("S3", "SONG_DATA")
+IAM_ROLE = config.get("IAM_ROLE","ARN")
+
 # DROP TABLES
 
 staging_events_table_drop = "DROP TABLE IF EXISTS staging_events"
@@ -18,8 +24,7 @@ time_table_drop = "DROP TABLE IF EXISTS time"
 # CREATE TABLES
 
 staging_events_table_create= ("""
-CREATE TABLE staging_events (
-    id                  IDENTITY(0,1) NOT NULL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS staging_events (
     artist              text,
     auth                text,
     firstName           text,
@@ -44,8 +49,8 @@ CREATE TABLE staging_events (
 """)
 
 staging_songs_table_create = ("""
-CREATE TABLE staging_songs (
-    id                  IDENTITY(0,1) NOT NULL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS staging_songs (
+    id                  text,
     num_songs           int,
     artist_id           text,
     artist_latitude     text,
@@ -60,8 +65,8 @@ CREATE TABLE staging_songs (
 """)
 
 songplay_table_create = ("""
-CREATE TABLE songplay (
-    songplay_id          IDENTITY(0,1) NOT NULL PRIMARY KEY, 
+CREATE TABLE IF NOT EXISTS songplay (
+    songplay_id          IDENTITY(0,1) PRIMARY KEY sortkey, 
     start_time           timestamp without time zone NOT NULL, 
     user_id              int NOT NULL, 
     level                text, 
@@ -73,8 +78,8 @@ CREATE TABLE songplay (
 )""")
 
 user_table_create = ("""
-CREATE TABLE user (
-    user_id             int NOT NULL PRIMARY KEY, 
+CREATE TABLE IF NOT EXISTS user (
+    user_id             int PRIMARY KEY distkey, 
     first_name          text, 
     last_name           text, 
     gender              text, 
@@ -82,8 +87,8 @@ CREATE TABLE user (
 )""")
 
 song_table_create = ("""
-CREATE TABLE song (
-    song_id             text NOT NULL PRIMARY KEY, 
+CREATE TABLE IF NOT EXISTS song (
+    song_id             text PRIMARY KEY sortkey, 
     title               text, 
     artist_id           text, 
     year                int, 
@@ -91,8 +96,8 @@ CREATE TABLE song (
 )""")
 
 artist_table_create = ("""
-CREATE TABLE artist (
-    artist_id           text NOT NULL PRIMARY KEY, 
+CREATE TABLE IF NOT EXISTS artist (
+    artist_id           text PRIMARY KEY sortkey, 
     name                text, 
     location            text, 
     latitude            numeric, 
@@ -100,8 +105,8 @@ CREATE TABLE artist (
 )""")
 
 time_table_create = ("""
-CREATE TABLE events (
-    start_time          timestamp without time zone NOT NULL PRIMARY KEY, 
+CREATE TABLE IF NOT EXISTS events (
+    start_time          timestamp without time zone PRIMARY KEY sortkey distkey, 
     hour                int, 
     day                 int, 
     week                int, 
@@ -114,10 +119,10 @@ CREATE TABLE events (
 
 staging_events_copy = ("""
 COPY staging_events
-    FROM 's3://udacity-dend/log_data'
+    FROM {}
     iam_role '{}'
     REGION 'us-west-2'
-    JSON 's3://udacity-dend/log_json_path.json';
+    JSON {};
 """).format(LOG_DATA, IAM_ROLE, LOG_JSONPATH)
 
 staging_songs_copy = ("""
@@ -125,10 +130,9 @@ staging_songs_copy = ("""
 staging_songs_copy = ("""
 COPY staging_songs
     FROM {}
-    iam_role {}
+    iam_role '{}'
     REGION 'us-west-2'
-    json 'auto';
-
+    JSON 'auto';
 """).format(SONG_DATA, IAM_ROLE)
 
 # FINAL TABLES
@@ -146,18 +150,25 @@ INSERT INTO songplays
     location,
     user_agent
 )
-    VALUES 
-(
-    %s,
-    %s,
-    %s,
-    %s,
-    %s,
-    %s,
-    %s,
-    %s,
-    %s
-)
+SELECT 
+    DISTINCT 
+    to_timestamp(to_char(staging_events.ts, '9999-99-99 99:99:99'),'YYYY-MM-DD HH24:MI:SS') AS start_time,
+    staging_events.userId AS user_id,
+    staging_events.level AS level,
+    staging_events.song_id AS song_id,
+    staging_songs.artist_id AS artist_id,
+    staging_events.sessionId AS session_id,
+    staging_events.location AS location,
+    staging_events.userAgent AS user_agent
+FROM 
+    staging_events 
+INNER JOIN 
+    staging_songs
+    ON staging_events.song = staging_songs.title 
+    AND staging_events.artist = staging_songs.artist_name
+WHERE
+    staging_events.ts IS NOT NULL
+    AND staging_events.userId IS NOT NULL;
 """)
 
 user_table_insert = ("""
@@ -169,20 +180,17 @@ INSERT INTO users
     gender,
     level
 ) 
-VALUES 
-(
-    %s,
-    %s,
-    %s,
-    %s,
-    %s
-) 
-ON CONFLICT 
-    ON CONSTRAINT users_pkey DO UPDATE SET 
-        first_name = EXCLUDED.first_name,
-        last_name = EXCLUDED.last_name,
-        gender = EXCLUDED.gender,
-        level = EXCLUDED.level
+SELECT
+    DISTINCT
+    userId AS user_id,
+    firstName AS first_name,
+    lastName AS last_name,
+    gender,
+    level
+FROM
+    staging_events
+WHERE
+    userId IS NOT NULL
 """)
 
 song_table_insert = ("""
@@ -194,20 +202,17 @@ INSERT INTO songs
     year,
     duration
 ) 
-VALUES 
-(
-    %s,
-    %s,
-    %s,
-    %s,
-    %s
-) 
-ON CONFLICT ON CONSTRAINT 
-    songs_pkey DO UPDATE SET 
-        title = EXCLUDED.title,
-        artist_id = EXCLUDED.artist_id,
-        year = EXCLUDED.year,
-        duration = EXCLUDED.duration
+SELECT 
+    DISTINCT
+    song_id,
+    title,
+    artist_id,
+    year,
+    duration
+FROM
+    staging_songs
+WHERE
+    song_id IS NOT NULL
 """)
 
 artist_table_insert = ("""
@@ -219,19 +224,17 @@ INSERT INTO artists
     latitude,
     longitude
 ) 
-VALUES 
-(
-    %s,
-    %s,
-    %s,
-    %s,
-    %s
-    ) 
-ON CONFLICT ON CONSTRAINT artists_pkey DO UPDATE SET 
-    name = EXCLUDED.name,
-    location = EXCLUDED.location,
-    latitude = EXCLUDED.latitude,
-    longitude = EXCLUDED.longitude
+SELECT
+    DISTINCT
+    artist_id,
+    artist_name AS name,
+    artist_location AS location,
+    artist_latitude AS latitude,
+    artist_longitude AS longitude
+FROM
+    staging_songs
+WHERE
+    artist_id IS NOT NULL
 """)
 
 time_table_insert = ("""
@@ -245,17 +248,19 @@ INSERT INTO times
     year,
     weekday
 ) 
-VALUES 
-(
-    %s,
-    %s,
-    %s,
-    %s,
-    %s,
-    %s,
-    %s
-) 
-ON CONFLICT ON CONSTRAINT times_pkey DO NOTHING
+SELECT
+    DISTINCT
+    ts AS start_time,
+    EXTRACT(hour FROM ts) AS hour,
+    EXTRACT(day FROM ts) AS day, 
+    EXTRACT(week FROM ts) AS week, 
+    EXTRACT(month FROM ts) AS month, 
+    EXTRACT(year FROM ts) AS year, 
+    EXTRACT(weekday FROM ts) AS weekday
+FROM
+    staging_events
+WHERE
+    ts IS NOT NULL
 """)
 
 # QUERY LISTS
