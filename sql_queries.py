@@ -13,13 +13,13 @@ IAM_ROLE = config.get("IAM_ROLE","ARN")
 
 # DROP TABLES
 
-staging_events_table_drop = "DROP TABLE IF EXISTS staging_events"
-staging_songs_table_drop = "DROP TABLE IF EXISTS staging_songs"
-songplay_table_drop = "DROP TABLE IF EXISTS songplay"
-user_table_drop = "DROP TABLE IF EXISTS user"
-song_table_drop = "DROP TABLE IF EXISTS song"
-artist_table_drop = "DROP TABLE IF EXISTS artist"
-time_table_drop = "DROP TABLE IF EXISTS time"
+staging_events_table_drop = "DROP TABLE IF EXISTS staging_events;"
+staging_songs_table_drop = "DROP TABLE IF EXISTS staging_songs;"
+songplay_table_drop = "DROP TABLE IF EXISTS fact_songplay;"
+user_table_drop = "DROP TABLE IF EXISTS dim_user;"
+song_table_drop = "DROP TABLE IF EXISTS dim_song;"
+artist_table_drop = "DROP TABLE IF EXISTS dim_artist;"
+time_table_drop = "DROP TABLE IF EXISTS dim_time;"
 
 # CREATE TABLES
 
@@ -43,9 +43,7 @@ CREATE TABLE IF NOT EXISTS staging_events (
     ts                  bigint,
     userAgent           text,
     userId              int
-)
-    
-)
+);
 """)
 
 staging_songs_table_create = ("""
@@ -61,12 +59,12 @@ CREATE TABLE IF NOT EXISTS staging_songs (
     title               text,
     duration            numeric,
     year                int
-)
+);
 """)
 
 songplay_table_create = ("""
-CREATE TABLE IF NOT EXISTS songplay (
-    songplay_id          IDENTITY(0,1) PRIMARY KEY sortkey, 
+CREATE TABLE IF NOT EXISTS fact_songplay (
+    songplay_id          int IDENTITY(0,1) PRIMARY KEY sortkey, 
     start_time           timestamp without time zone NOT NULL, 
     user_id              int NOT NULL, 
     level                text, 
@@ -75,37 +73,41 @@ CREATE TABLE IF NOT EXISTS songplay (
     session_id           int, 
     location             text, 
     user_agent           text 
-)""")
+);
+""")
 
 user_table_create = ("""
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS dim_user (
     user_id             int PRIMARY KEY distkey, 
     first_name          text, 
     last_name           text, 
     gender              text, 
     level               text
-)""")
+);
+""")
 
 song_table_create = ("""
-CREATE TABLE IF NOT EXISTS song (
+CREATE TABLE IF NOT EXISTS dim_song (
     song_id             text PRIMARY KEY sortkey, 
     title               text, 
     artist_id           text, 
     year                int, 
     duration            numeric 
-)""")
+);
+""")
 
 artist_table_create = ("""
-CREATE TABLE IF NOT EXISTS artist (
+CREATE TABLE IF NOT EXISTS dim_artist (
     artist_id           text PRIMARY KEY sortkey, 
     name                text, 
     location            text, 
     latitude            numeric, 
     longitude           numeric
-)""")
+);
+""")
 
 time_table_create = ("""
-CREATE TABLE IF NOT EXISTS events (
+CREATE TABLE IF NOT EXISTS dim_time (
     start_time          timestamp without time zone PRIMARY KEY sortkey distkey, 
     hour                int, 
     day                 int, 
@@ -113,7 +115,8 @@ CREATE TABLE IF NOT EXISTS events (
     month               int, 
     year                int, 
     weekday             int
-)""")
+);
+""")
 
 # STAGING TABLES
 
@@ -126,8 +129,6 @@ COPY staging_events
 """).format(LOG_DATA, IAM_ROLE, LOG_JSONPATH)
 
 staging_songs_copy = ("""
-""").format()
-staging_songs_copy = ("""
 COPY staging_songs
     FROM {}
     iam_role '{}'
@@ -138,7 +139,7 @@ COPY staging_songs
 # FINAL TABLES
 
 songplay_table_insert = ("""
-INSERT INTO songplays 
+INSERT INTO fact_songplay
 (
     songplay_id,
     start_time,
@@ -155,7 +156,7 @@ SELECT
     to_timestamp(to_char(staging_events.ts, '9999-99-99 99:99:99'),'YYYY-MM-DD HH24:MI:SS') AS start_time,
     staging_events.userId AS user_id,
     staging_events.level AS level,
-    staging_events.song_id AS song_id,
+    staging_events.song AS song_id,
     staging_songs.artist_id AS artist_id,
     staging_events.sessionId AS session_id,
     staging_events.location AS location,
@@ -172,7 +173,7 @@ WHERE
 """)
 
 user_table_insert = ("""
-INSERT INTO users 
+INSERT INTO dim_user
 (
     user_id,
     first_name,
@@ -190,11 +191,11 @@ SELECT
 FROM
     staging_events
 WHERE
-    userId IS NOT NULL
+    userId IS NOT NULL;
 """)
 
 song_table_insert = ("""
-INSERT INTO songs 
+INSERT INTO dim_song
 (
     song_id, 
     title,
@@ -212,11 +213,11 @@ SELECT
 FROM
     staging_songs
 WHERE
-    song_id IS NOT NULL
+    song_id IS NOT NULL;
 """)
 
 artist_table_insert = ("""
-INSERT INTO artists 
+INSERT INTO dim_artist
 (
     artist_id,
     name,
@@ -234,11 +235,11 @@ SELECT
 FROM
     staging_songs
 WHERE
-    artist_id IS NOT NULL
+    artist_id IS NOT NULL;
 """)
 
 time_table_insert = ("""
-INSERT INTO times 
+INSERT INTO dim_time
 (
     start_time,
     hour,
@@ -260,7 +261,7 @@ SELECT
 FROM
     staging_events
 WHERE
-    ts IS NOT NULL
+    ts IS NOT NULL;
 """)
 
 # QUERY LISTS
