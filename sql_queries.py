@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS staging_songs (
 
 songplay_table_create = ("""
 CREATE TABLE IF NOT EXISTS fact_songplay (
-    songplay_id          int IDENTITY(0,1) PRIMARY KEY sortkey, 
+    id                   int IDENTITY(0,1) PRIMARY KEY sortkey, 
     start_time           timestamp without time zone NOT NULL, 
     user_id              int NOT NULL, 
     level                text, 
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS fact_songplay (
 
 user_table_create = ("""
 CREATE TABLE IF NOT EXISTS dim_user (
-    user_id             int PRIMARY KEY distkey, 
+    id                  int PRIMARY KEY sortkey, 
     first_name          text, 
     last_name           text, 
     gender              text, 
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS dim_user (
 
 song_table_create = ("""
 CREATE TABLE IF NOT EXISTS dim_song (
-    song_id             text PRIMARY KEY sortkey, 
+    id                  text PRIMARY KEY sortkey, 
     title               text, 
     artist_id           text, 
     year                int, 
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS dim_song (
 
 artist_table_create = ("""
 CREATE TABLE IF NOT EXISTS dim_artist (
-    artist_id           text PRIMARY KEY sortkey, 
+    id                  text PRIMARY KEY sortkey, 
     name                text, 
     location            text, 
     latitude            numeric, 
@@ -141,7 +141,6 @@ COPY staging_songs
 songplay_table_insert = ("""
 INSERT INTO fact_songplay
 (
-    songplay_id,
     start_time,
     user_id,
     level,
@@ -153,7 +152,7 @@ INSERT INTO fact_songplay
 )
 SELECT 
     DISTINCT 
-    to_timestamp(to_char(staging_events.ts, '9999-99-99 99:99:99'),'YYYY-MM-DD HH24:MI:SS') AS start_time,
+    TIMESTAMP 'epoch' + staging_events.ts/1000 *INTERVAL '1 second' AS start_time,
     staging_events.userId AS user_id,
     staging_events.level AS level,
     staging_events.song AS song_id,
@@ -175,7 +174,7 @@ WHERE
 user_table_insert = ("""
 INSERT INTO dim_user
 (
-    user_id,
+    id,
     first_name,
     last_name,
     gender,
@@ -183,7 +182,7 @@ INSERT INTO dim_user
 ) 
 SELECT
     DISTINCT
-    userId AS user_id,
+    userId AS id,
     firstName AS first_name,
     lastName AS last_name,
     gender,
@@ -197,7 +196,7 @@ WHERE
 song_table_insert = ("""
 INSERT INTO dim_song
 (
-    song_id, 
+    id, 
     title,
     artist_id,
     year,
@@ -205,7 +204,7 @@ INSERT INTO dim_song
 ) 
 SELECT 
     DISTINCT
-    song_id,
+    song_id AS id,
     title,
     artist_id,
     year,
@@ -219,7 +218,7 @@ WHERE
 artist_table_insert = ("""
 INSERT INTO dim_artist
 (
-    artist_id,
+    id,
     name,
     location,
     latitude,
@@ -227,7 +226,7 @@ INSERT INTO dim_artist
 ) 
 SELECT
     DISTINCT
-    artist_id,
+    artist_id AS id,
     artist_name AS name,
     artist_location AS location,
     artist_latitude AS latitude,
@@ -251,13 +250,13 @@ INSERT INTO dim_time
 ) 
 SELECT
     DISTINCT
-    ts AS start_time,
-    EXTRACT(hour FROM ts) AS hour,
-    EXTRACT(day FROM ts) AS day, 
-    EXTRACT(week FROM ts) AS week, 
-    EXTRACT(month FROM ts) AS month, 
-    EXTRACT(year FROM ts) AS year, 
-    EXTRACT(weekday FROM ts) AS weekday
+    TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second' AS start_time,
+    EXTRACT(hour FROM TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second') AS hour,
+    EXTRACT(day FROM TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second') AS day, 
+    EXTRACT(week FROM TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second') AS week, 
+    EXTRACT(month FROM TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second') AS month, 
+    EXTRACT(year FROM TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second') AS year, 
+    EXTRACT(weekday FROM TIMESTAMP 'epoch' + ts/1000 *INTERVAL '1 second') AS weekday
 FROM
     staging_events
 WHERE
