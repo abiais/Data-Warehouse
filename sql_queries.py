@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS staging_events (
     location            text,
     method              text,
     page                text,
-    registration        numeric,
+    registration        text,
     sessionId           int,
     song                text,
     status              int,
@@ -48,11 +48,10 @@ CREATE TABLE IF NOT EXISTS staging_events (
 
 staging_songs_table_create = ("""
 CREATE TABLE IF NOT EXISTS staging_songs (
-    id                  text,
     num_songs           int,
     artist_id           text,
-    artist_latitude     text,
-    artist_longitude    text, 
+    artist_latitude     decimal,
+    artist_longitude    decimal, 
     artist_location     text,
     artist_name         text,
     song_id             text,
@@ -166,9 +165,11 @@ INNER JOIN
     staging_songs
     ON staging_events.song = staging_songs.title 
     AND staging_events.artist = staging_songs.artist_name
+    AND staging_events.length = staging_songs.duration
 WHERE
     staging_events.ts IS NOT NULL
     AND staging_events.userId IS NOT NULL;
+    AND staging_events.page = 'NextSong'
 """)
 
 user_table_insert = ("""
