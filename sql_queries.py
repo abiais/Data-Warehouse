@@ -25,23 +25,23 @@ time_table_drop = "DROP TABLE IF EXISTS dim_time;"
 
 staging_events_table_create= ("""
 CREATE TABLE IF NOT EXISTS staging_events (
-    artist              text,
-    auth                text,
-    firstName           text,
-    gender              text,
+    artist              varchar,
+    auth                varchar,
+    firstName           varchar,
+    gender              varchar(1),
     itemInSession       int,
-    lastName            text,
+    lastName            varchar,
     length              numeric,
-    level               text,
-    location            text,
-    method              text,
-    page                text,
-    registration        text,
+    level               varchar,
+    location            varchar,
+    method              varchar(3),
+    page                varchar,
+    registration        varchar,
     sessionId           int,
-    song                text,
+    song                varchar,
     status              int,
     ts                  bigint,
-    userAgent           text,
+    userAgent           varchar,
     userId              int
 );
 """)
@@ -49,13 +49,13 @@ CREATE TABLE IF NOT EXISTS staging_events (
 staging_songs_table_create = ("""
 CREATE TABLE IF NOT EXISTS staging_songs (
     num_songs           int,
-    artist_id           text,
+    artist_id           varchar,
     artist_latitude     decimal,
     artist_longitude    decimal, 
-    artist_location     text,
-    artist_name         text,
-    song_id             text,
-    title               text,
+    artist_location     varchar,
+    artist_name         varchar,
+    song_id             varchar,
+    title               varchar,
     duration            numeric,
     year                int
 );
@@ -66,30 +66,30 @@ CREATE TABLE IF NOT EXISTS fact_songplay (
     id                   int IDENTITY(0,1) PRIMARY KEY sortkey, 
     start_time           timestamp without time zone NOT NULL, 
     user_id              int NOT NULL, 
-    level                text, 
-    song_id              text, 
-    artist_id            text, 
+    level                varchar, 
+    song_id              varchar, 
+    artist_id            varchar, 
     session_id           int, 
-    location             text, 
-    user_agent           text 
+    location             varchar, 
+    user_agent           varchar 
 );
 """)
 
 user_table_create = ("""
 CREATE TABLE IF NOT EXISTS dim_user (
     id                  int PRIMARY KEY sortkey, 
-    first_name          text, 
-    last_name           text, 
-    gender              text, 
-    level               text
+    first_name          varchar, 
+    last_name           varchar, 
+    gender              varchar, 
+    level               varchar
 );
 """)
 
 song_table_create = ("""
 CREATE TABLE IF NOT EXISTS dim_song (
-    id                  text PRIMARY KEY sortkey, 
-    title               text, 
-    artist_id           text, 
+    id                  varchar PRIMARY KEY sortkey, 
+    title               varchar, 
+    artist_id           varchar, 
     year                int, 
     duration            numeric 
 );
@@ -97,9 +97,9 @@ CREATE TABLE IF NOT EXISTS dim_song (
 
 artist_table_create = ("""
 CREATE TABLE IF NOT EXISTS dim_artist (
-    id                  text PRIMARY KEY sortkey, 
-    name                text, 
-    location            text, 
+    id                  varchar PRIMARY KEY sortkey, 
+    name                varchar, 
+    location            varchar, 
     latitude            numeric, 
     longitude           numeric
 );
@@ -168,8 +168,8 @@ INNER JOIN
     AND staging_events.length = staging_songs.duration
 WHERE
     staging_events.ts IS NOT NULL
-    AND staging_events.userId IS NOT NULL;
-    AND staging_events.page = 'NextSong'
+    AND staging_events.userId IS NOT NULL
+    AND staging_events.page = 'NextSong';
 """)
 
 user_table_insert = ("""
